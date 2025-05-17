@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    command: mongod --setParameter internalQueryCacheMaxEntriesPerCollection=1000 --setParameter collectionSamplingLogIntervalSeconds=60 --setParameter storageEngineConcurrentReadTransactions=128 --setParameter storageEngineConcurrentWriteTransactions=128 --tlsMode disabled --quiet
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=admin
+      - MONGODB_INITDB_ROOT_PASSWORD=password123
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  test:
+    build:
+      context: .
+      dockerfile: docker/test.Dockerfile
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=mongodb://admin:password123@mongodb:27017/?authSource=admin
+      - MONGODB_DB=test_sensor_data
+    volumes:
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./poetry.lock:/app/poetry.lock 
