@@ -89,6 +89,7 @@ This project aims to design and implement a data processing system for environme
 2. [x] Research and evaluate database options
 3. [x] Set up development environment
 4. [x] Start implementation of core functionality
-5. [ ] Test the system with real data
+5. [x] Test the system with real data
+5. [] Test the system with larger data set
 6. [ ] Optimize performance
 7. [ ] Complete final documentation

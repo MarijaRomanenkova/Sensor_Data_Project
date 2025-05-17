@@ -148,6 +148,4 @@ The system performs the following maintenance tasks daily:
    - Battery level trends
    - Sensor accuracy metrics
 
-## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
