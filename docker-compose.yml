@@ -37,6 +37,24 @@ services:
       - sensor_network
     command: python src/load_data.py
 
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: sensor_test
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+    networks:
+      - sensor_network
+    command: python src/test_performance.py
+
 networks:
   sensor_network:
     driver: bridge

@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError
 
+from config.settings import BATCH_SIZE
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -34,7 +36,7 @@ class DataProcessor:
             "MONGODB_URI", "mongodb://admin:password123@localhost:27017/"
         )
         self.db_name = os.getenv("MONGODB_DB", "sensor_data")
-        self.batch_size = 50000  # Increased batch size for better performance
+        self.batch_size = BATCH_SIZE  # Use batch size from settings
         self.client = None
         self.db = None
         self.collection = None

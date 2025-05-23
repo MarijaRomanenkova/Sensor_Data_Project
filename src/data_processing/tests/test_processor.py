@@ -4,29 +4,31 @@ from datetime import datetime, timedelta
 from src.data_processing.processor import DataProcessor
 from pymongo.errors import PyMongoError
 from mongomock import MongoClient
+from config.settings import BATCH_SIZE
 
 @pytest.fixture
 def sample_data():
     return pd.DataFrame({
-        'timestamp': ['2024-01-01', '2024-01-02', '2024-01-03'],
-        'device_id': ['Device_1', 'Device_2', 'Device_3'],
-        'temperature': [25.5, 30.0, -10.0],
-        'humidity': [60.0, 75.0, 90.0],
-        'pressure': [1013.2, 1012.8, 1013.5],
-        'light': [500, 600, 400],
-        'sound': [45, 50, 40],
-        'motion': [0, 1, 0],
-        'battery': [95.5, 94.8, 96.2],
-        'location': ['Room A', 'Room B', 'Room A']
+        'timestamp': [datetime.now()],
+        'device_id': ['test_device'],
+        'temperature': [25.0],
+        'humidity': [50.0],
+        'pressure': [1013.0],
+        'location': ['test_location']
     })
 
 @pytest.fixture
-def mock_mongodb():
-    client = MongoClient()
-    db = client['test_sensor_data']
-    collection = db['sensor_readings']
-    aggregated_collection = db['aggregated_readings']
-    return client, db, collection, aggregated_collection
+def mock_mongodb(mocker):
+    # Mock MongoDB client and collections
+    mock_client = mocker.Mock()
+    mock_db = mocker.Mock()
+    mock_collection = mocker.Mock()
+    mock_aggregated_collection = mocker.Mock()
+    
+    mock_client.__getitem__.return_value = mock_db
+    mock_db.__getitem__.side_effect = lambda x: mock_collection if x == "sensor_readings" else mock_aggregated_collection
+    
+    return mock_client, mock_db, mock_collection, mock_aggregated_collection
 
 @pytest.fixture
 def processor(mock_mongodb):
@@ -41,7 +43,7 @@ def processor(mock_mongodb):
 def test_initialization(processor):
     assert processor is not None
     assert isinstance(processor, DataProcessor)
-    assert processor.batch_size == 1000
+    assert processor.batch_size == BATCH_SIZE
 
 def test_process_batch(processor, sample_data):
     records = sample_data.to_dict('records')

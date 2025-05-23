@@ -11,7 +11,7 @@ MONGODB_DB = os.getenv("MONGODB_DB", "sensor_data")
 MONGODB_COLLECTION = "sensor_readings"
 
 # Data processing settings
-BATCH_SIZE = 1000
+BATCH_SIZE = 50000  # Optimized for high throughput processing
 DATA_DIR = os.path.join(os.getcwd(), "data", "raw")
 
 # Data validation ranges
