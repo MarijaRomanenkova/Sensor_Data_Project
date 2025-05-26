@@ -2,6 +2,7 @@ import time
 import logging
 import pandas as pd
 import numpy as np
+import os
 from datetime import datetime, timedelta
 from data_processing.processor import DataProcessor
 
@@ -45,13 +46,13 @@ def test_data_loading(num_records: int = 500000):
     """Test the system's performance with a large dataset."""
     processor = DataProcessor()
     start_time = time.time()
+    test_file = "data/raw/test_large_dataset.csv"
     
     try:
         # Connect to MongoDB
         processor.connect_to_mongodb()
         
         # Generate and process test data
-        test_file = "data/raw/test_large_dataset.csv"
         generate_test_data(num_records, test_file)
         
         logger.info(f"Starting to process {num_records:,} records...")
@@ -87,6 +88,13 @@ def test_data_loading(num_records: int = 500000):
         raise
     finally:
         processor.close()
+        # Clean up the test file
+        try:
+            if os.path.exists(test_file):
+                os.remove(test_file)
+                logger.info(f"Cleaned up test file: {test_file}")
+        except Exception as e:
+            logger.error(f"Error cleaning up test file: {str(e)}")
 
 if __name__ == "__main__":
     # Test with 500,000 records
