@@ -108,28 +108,6 @@ def test_data_quality_metrics(processor):
     assert 'out_of_range' in metrics
     assert 'data_quality_score' in metrics
 
-def test_backup_database(processor, tmp_path):
-    # Add some test data first
-    test_data = {
-        'timestamp': datetime.utcnow(),
-        'device_id': 'Device_1',
-        'temperature': 25.0,
-        'humidity': 50.0,
-        'pressure': 1013.2,
-        'light': 500,
-        'sound': 45,
-        'motion': 0,
-        'battery': 95.5,
-        'location': 'Room A'
-    }
-    processor.collection.insert_one(test_data)
-    
-    backup_path = str(tmp_path)
-    processor.backup_database(backup_path)
-    # Check if backup files were created
-    backup_files = list(tmp_path.glob('*.json'))
-    assert len(backup_files) > 0
-
 def test_cleanup_old_data(processor):
     # Add some old data
     old_date = datetime.utcnow() - timedelta(days=400)  # More than 1 year old

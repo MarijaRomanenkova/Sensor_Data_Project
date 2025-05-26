@@ -50,4 +50,7 @@ data/processed/*
 !data/processed/.gitkeep
 
 # Docker
-.docker/ 
+.docker/
+
+# Documentation
+*.md

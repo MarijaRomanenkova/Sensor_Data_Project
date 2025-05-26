@@ -698,33 +698,6 @@ class DataProcessor:
             logger.error(f"Failed to calculate data quality metrics: {str(e)}")
             raise
 
-    def backup_database(self, backup_path: str):
-        """Create a backup of the database."""
-        try:
-            # Create backup directory if it doesn't exist
-            os.makedirs(backup_path, exist_ok=True)
-            
-            # Get current timestamp for backup filename
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            
-            # Export raw data
-            raw_backup_file = os.path.join(backup_path, f"raw_data_{timestamp}.json")
-            with open(raw_backup_file, 'w') as f:
-                for doc in self.collection.find():
-                    f.write(str(doc) + '\n')
-            
-            # Export aggregated data
-            agg_backup_file = os.path.join(backup_path, f"aggregated_data_{timestamp}.json")
-            with open(agg_backup_file, 'w') as f:
-                for doc in self.aggregated_collection.find():
-                    f.write(str(doc) + '\n')
-            
-            logger.info(f"Backup created successfully at {backup_path}")
-            
-        except Exception as e:
-            logger.error(f"Failed to create backup: {str(e)}")
-            raise
-
     def get_validation_summary(self) -> Dict[str, Any]:
         """Get a summary of validation errors."""
         try:
@@ -800,26 +773,28 @@ class DataProcessor:
             Dictionary containing statistics
         """
         try:
-            match_stage = {"$match": {"device_id": device_id}} if device_id else {}
+            pipeline = []
             
-            pipeline = [
-                match_stage,
-                {
-                    "$group": {
-                        "_id": "$device_id",
-                        "avg_temperature": {"$avg": "$temperature"},
-                        "avg_humidity": {"$avg": "$humidity"},
-                        "avg_pressure": {"$avg": "$pressure"},
-                        "avg_light": {"$avg": "$light"},
-                        "avg_sound": {"$avg": "$sound"},
-                        "avg_battery": {"$avg": "$battery"},
-                        "total_readings": {"$sum": 1},
-                        "locations": {"$addToSet": "$location"},
-                        "first_reading": {"$min": "$timestamp"},
-                        "last_reading": {"$max": "$timestamp"}
-                    }
+            # Only add match stage if device_id is provided
+            if device_id:
+                pipeline.append({"$match": {"device_id": device_id}})
+            
+            # Add group stage
+            pipeline.append({
+                "$group": {
+                    "_id": "$device_id",
+                    "avg_temperature": {"$avg": "$temperature"},
+                    "avg_humidity": {"$avg": "$humidity"},
+                    "avg_pressure": {"$avg": "$pressure"},
+                    "avg_light": {"$avg": "$light"},
+                    "avg_sound": {"$avg": "$sound"},
+                    "avg_battery": {"$avg": "$battery"},
+                    "total_readings": {"$sum": 1},
+                    "locations": {"$addToSet": "$location"},
+                    "first_reading": {"$min": "$timestamp"},
+                    "last_reading": {"$max": "$timestamp"}
                 }
-            ]
+            })
             
             results = list(self.collection.aggregate(pipeline))
             
@@ -845,25 +820,27 @@ class DataProcessor:
             Dictionary containing statistics
         """
         try:
-            match_stage = {"$match": {"location": location}} if location else {}
+            pipeline = []
             
-            pipeline = [
-                match_stage,
-                {
-                    "$group": {
-                        "_id": "$location",
-                        "avg_temperature": {"$avg": "$temperature"},
-                        "avg_humidity": {"$avg": "$humidity"},
-                        "avg_pressure": {"$avg": "$pressure"},
-                        "avg_light": {"$avg": "$light"},
-                        "avg_sound": {"$avg": "$sound"},
-                        "device_count": {"$addToSet": "$device_id"},
-                        "total_readings": {"$sum": 1},
-                        "first_reading": {"$min": "$timestamp"},
-                        "last_reading": {"$max": "$timestamp"}
-                    }
+            # Only add match stage if location is provided
+            if location:
+                pipeline.append({"$match": {"location": location}})
+            
+            # Add group stage
+            pipeline.append({
+                "$group": {
+                    "_id": "$location",
+                    "avg_temperature": {"$avg": "$temperature"},
+                    "avg_humidity": {"$avg": "$humidity"},
+                    "avg_pressure": {"$avg": "$pressure"},
+                    "avg_light": {"$avg": "$light"},
+                    "avg_sound": {"$avg": "$sound"},
+                    "device_count": {"$addToSet": "$device_id"},
+                    "total_readings": {"$sum": 1},
+                    "first_reading": {"$min": "$timestamp"},
+                    "last_reading": {"$max": "$timestamp"}
                 }
-            ]
+            })
             
             results = list(self.collection.aggregate(pipeline))
             

@@ -4,20 +4,22 @@ services:
   mongodb:
     image: mongo:latest
     container_name: sensor_mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-    networks:
-      - sensor_network
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+    command: mongod --auth
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - sensor_network
 
   app:
     build:
@@ -33,9 +35,32 @@ services:
     volumes:
       - ./src:/app/src
       - ./data:/app/data
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./poetry.lock:/app/poetry.lock
+    command: python src/load_data.py
     networks:
       - sensor_network
-    command: python src/load_data.py
+
+  performance-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: sensor_performance_test
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/test_sensor_data?authSource=admin
+      - MONGODB_DB=test_sensor_data
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./poetry.lock:/app/poetry.lock
+    command: python src/test_performance.py
+    profiles: ["performance-test"]
+    networks:
+      - sensor_network
 
   test:
     build:
@@ -51,9 +76,33 @@ services:
     volumes:
       - ./src:/app/src
       - ./data:/app/data
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./poetry.lock:/app/poetry.lock
+    command: pytest src/data_processing/tests/ -v
+    profiles: ["test"]
     networks:
       - sensor_network
-    command: python src/test_performance.py
+
+  maintenance:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: sensor_maintenance
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./poetry.lock:/app/poetry.lock
+    command: python src/maintenance.py
+    profiles: ["maintenance"]
+    networks:
+      - sensor_network
 
 networks:
   sensor_network:

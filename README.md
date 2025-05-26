@@ -14,9 +14,8 @@ A data processing system for environmental sensor data collected by a municipali
 
 ## Prerequisites
 
-- Python 3.10+
-- MongoDB
-- Docker (optional)
+- Docker
+- Docker Compose
 
 ## Installation
 
@@ -26,41 +25,71 @@ A data processing system for environmental sensor data collected by a municipali
    cd environmental-sensor-system
    ```
 
-2. Install dependencies:
+2. Set up environment variables:
    ```bash
-   pip install -r requirements.txt
+   # Copy the example environment file
+   cp .env.example .env
    ```
-
-3. Set up environment variables:
-   Create a `.env` file with:
+   The `.env` file contains:
    ```
+   MONGO_INITDB_ROOT_USERNAME=admin
+   MONGO_INITDB_ROOT_PASSWORD=password123
    MONGODB_URI=mongodb://admin:password123@mongodb:27017/
    MONGODB_DB=sensor_data
    ```
 
-## Usage
+## Running the System
 
-### Loading Data
+The system uses Docker Compose with different profiles for different purposes:
 
-To load data from CSV files:
-```bash
-python src/load_data.py
-```
+1. **Start Main Application and MongoDB**:
+   ```bash
+   docker compose up --build
+   ```
+   This will:
+   - Start MongoDB with authentication
+   - Start the main application
+   - Load data if the database is empty
+   - Persist data between restarts
 
-### Running Maintenance
+2. **Run Unit and Integration Tests**:
+   ```bash
+   docker compose --profile test up --build
+   ```
+   This will:
+   - Use a separate test database
+   - Run all unit and integration tests
+   - Show test results and coverage
 
-To run daily maintenance tasks (aggregation, cleanup, backup):
-```bash
-python src/maintenance.py
-```
+3. **Run Performance Tests**:
+   ```bash
+   docker compose --profile performance-test up --build
+   ```
+   This will:
+   - Use a separate test database
+   - Run performance tests on 500,000 records
+   - Show processing speed and memory usage metrics
 
-### Using Docker
+4. **Run Maintenance Tasks**:
+   ```bash
+   docker compose --profile maintenance up --build
+   ```
+   This will:
+   - Create daily aggregations
+   - Clean up old data
+   - Generate data quality metrics
+   - Show device and location statistics
 
-Build and run the maintenance container:
-```bash
-docker build -f docker/maintenance.Dockerfile -t sensor-maintenance .
-docker run --network=host sensor-maintenance
-```
+5. **Stop Services**:
+   ```bash
+   # Stop services but keep data
+   docker compose down --remove-orphans
+
+   # Stop services and remove all data (fresh start)
+   docker compose down -v --remove-orphans
+   ```
+
+Note: The `-v` flag in `docker compose down` removes all volumes, including the database data. Use it only when you want to start fresh.
 
 ## Data Structure
 
@@ -138,14 +167,18 @@ docker run --network=host sensor-maintenance
 ## Maintenance
 
 The system performs the following maintenance tasks daily:
-1. Creates daily aggregations by location and device
-2. Cleans up old data (raw data > 1 year, aggregated > 5 years)
-3. Creates database backups
-4. Calculates data quality metrics:
-   - Missing data percentage
-   - Out-of-range values
-   - Device uptime
-   - Battery level trends
-   - Sensor accuracy metrics
+1. Creates daily aggregations by location and device:
+   - Calculates averages for all sensor readings
+   - Stores min/max values for temperature, humidity, and pressure
+   - Maintains count of readings per device-location combination
+
+2. Cleans up old data:
+   - Removes raw data older than 1 year
+   - Removes aggregated data older than 5 years
+
+3. Generates system statistics:
+   - Data quality metrics (total records, missing values, out-of-range values)
+   - Device statistics (active devices, locations, reading counts)
+   - Location statistics (active devices per location, reading counts)
 
 
