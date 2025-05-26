@@ -11,7 +11,6 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
     command: mongod --auth
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
@@ -24,7 +23,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: sensor_app
     depends_on:
       mongodb:
@@ -44,7 +43,7 @@ services:
   performance-test:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: sensor_performance_test
     depends_on:
       mongodb:
@@ -65,7 +64,7 @@ services:
   test:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: sensor_test
     depends_on:
       mongodb:
@@ -86,7 +85,7 @@ services:
   maintenance:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
     container_name: sensor_maintenance
     depends_on:
       mongodb:
