@@ -203,5 +203,6 @@ docker compose --profile maintenance up --build
    - Data quality metrics (total records, missing values, out-of-range values)
    - Device statistics (active devices, locations, reading counts)
    - Location statistics (active devices per location, reading counts)
+   -- logs errors
 
 
