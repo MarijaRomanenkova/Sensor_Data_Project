@@ -1,6 +1,6 @@
 # Environmental Sensor Data Processing System
 
-A data processing system for environmental sensor data collected by a municipality. The system stores and processes data from csv file storing various sensors measuring environmental metrics like temperature, humidity, smoke, etc.
+A data processing system for environmental sensor data collected by a municipality. The system stores and processes data from csv file storing various sensors measuring environmental metrics like temperature, humidity etc.
 
 ## Features
 
@@ -108,60 +108,3 @@ Note: The `-v` flag in `docker compose down` removes all volumes, including the 
 - Sound: ≥ 0
 - Motion: 0 or 1
 - Battery: 0% to 100%
-
-## Architecture
-
-The system consists of the following components:
-
-1. **Data Processing Service**:
-   - Handles data ingestion and validation
-   - Performs data normalization
-   - Stores data in MongoDB
-   - Provides data quality metrics
-
-2. **MongoDB Database**:
-   - Stores sensor readings
-   - Maintains data integrity
-   - Provides efficient querying capabilities
-
-3. **Performance Testing Service**:
-   - Simulates high-volume data ingestion
-   - Measures system performance
-   - Generates performance reports
-
-## Data Flow
-
-1. **Data Ingestion**:
-   - CSV files are processed in batches
-   - Data is validated and normalized
-   - Valid records are stored in MongoDB
-
-2. **Data Validation**:
-   - Required fields are checked
-   - Data types are verified
-   - Value ranges are validated
-   - Invalid records are logged
-
-3. **Data Storage**:
-   - Data is stored in MongoDB collections
-   - Indexes are created for efficient querying
-   - Data quality metrics are maintained
-
-## Performance Testing
-
-The system includes a performance testing service that:
-- Simulates high-volume data ingestion
-- Measures processing speed and efficiency
-- Generates performance reports
-- Helps identify bottlenecks
-
-To run performance tests:
-```bash
-docker compose --profile performance-test up --build
-```
-
-
-
-
-
-
