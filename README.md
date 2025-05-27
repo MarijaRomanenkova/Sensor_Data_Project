@@ -7,39 +7,9 @@ A data processing system for environmental sensor data collected by a municipali
 - Batch processing of sensor data
 - Data validation and quality checks
 - MongoDB storage with proper indexing
-- Data retention policy (1 year raw data, 5 years aggregated)
-- Daily data aggregation
 - Connection pooling for better performance
+- Error logging and validation
 
-## Performance Test Results
-
-The system has been tested with a large dataset of 500,000 records, demonstrating excellent performance and reliability:
-
-```
-==================================================
-PERFORMANCE TEST RESULTS
-==================================================
-Total Processing Time: 25.86 seconds
-Processing Speed: 19,336.02 records/second
-Memory Usage: 194.19 MB
-Records Processed: 500,000
-Failed Records: 0
-Success Rate: 100.00%
-
-==================================================
-DATA QUALITY METRICS
-==================================================
-Data Quality Score: 100.00%
-Missing Values: 0
-Out of Range Values: 0
-```
-
-### Key Performance Highlights
-
-- **Processing Speed**: ~19,336 records/second
-- **Memory Efficiency**: Only 194.19 MB for processing 500K records
-- **Perfect Data Quality**: 100% success rate with no data quality issues
-- **Zero Failures**: All records were processed successfully
 
 ## Prerequisites
 
@@ -59,13 +29,6 @@ Out of Range Values: 0
    # Copy the example environment file
    cp .env.example .env
    ```
-   The `.env` file contains:
-   ```
-   MONGO_INITDB_ROOT_USERNAME=admin
-   MONGO_INITDB_ROOT_PASSWORD=password123
-   MONGODB_URI=mongodb://admin:password123@mongodb:27017/
-   MONGODB_DB=sensor_data
-   ```
 
 ## Running the System
 
@@ -73,7 +36,7 @@ The system uses Docker Compose with different profiles for different purposes:
 
 1. **Start Main Application and MongoDB**:
    ```bash
-   docker compose up --build
+   docker compose --profile app up --build
    ```
    This will:
    - Start MongoDB with authentication
@@ -90,17 +53,7 @@ The system uses Docker Compose with different profiles for different purposes:
    - Run performance tests on 500,000 records
    - Show processing speed and memory usage metrics
 
-3. **Run Maintenance Tasks**:
-   ```bash
-   docker compose --profile maintenance up --build
-   ```
-   This will:
-   - Create daily aggregations
-   - Clean up old data
-   - Generate data quality metrics
-   - Show device and location statistics
-
-4. **Stop Services**:
+3. **Stop Services**:
    ```bash
    # Stop services but keep data
    docker compose down --remove-orphans
@@ -146,34 +99,6 @@ Note: The `-v` flag in `docker compose down` removes all volumes, including the 
 - `location`: Physical location of the sensor (e.g., "Room A")
 - `metadata`: Additional processing information
 
-### Aggregated Data Schema
-```json
-{
-  "timestamp": "ISODate",
-  "device_id": "String",
-  "location": "String",
-  "avg_temperature": "Double",
-  "avg_humidity": "Double",
-  "avg_pressure": "Double",
-  "avg_light": "Double",
-  "avg_sound": "Double",
-  "avg_motion": "Double",
-  "avg_battery": "Double",
-  "max_temperature": "Double",
-  "min_temperature": "Double",
-  "max_humidity": "Double",
-  "min_humidity": "Double",
-  "max_pressure": "Double",
-  "min_pressure": "Double",
-  "count": "Integer",
-  "metadata": {
-    "aggregated_at": "ISODate",
-    "period": "String",
-    "batch_id": "String"
-  }
-}
-```
-
 ## Data Validation
 
 - Temperature: -50°C to 50°C
@@ -184,24 +109,59 @@ Note: The `-v` flag in `docker compose down` removes all volumes, including the 
 - Motion: 0 or 1
 - Battery: 0% to 100%
 
-## Maintenance
+## Architecture
 
-The system performs the following maintenance tasks that should be run by separate command:
+The system consists of the following components:
+
+1. **Data Processing Service**:
+   - Handles data ingestion and validation
+   - Performs data normalization
+   - Stores data in MongoDB
+   - Provides data quality metrics
+
+2. **MongoDB Database**:
+   - Stores sensor readings
+   - Maintains data integrity
+   - Provides efficient querying capabilities
+
+3. **Performance Testing Service**:
+   - Simulates high-volume data ingestion
+   - Measures system performance
+   - Generates performance reports
+
+## Data Flow
+
+1. **Data Ingestion**:
+   - CSV files are processed in batches
+   - Data is validated and normalized
+   - Valid records are stored in MongoDB
+
+2. **Data Validation**:
+   - Required fields are checked
+   - Data types are verified
+   - Value ranges are validated
+   - Invalid records are logged
+
+3. **Data Storage**:
+   - Data is stored in MongoDB collections
+   - Indexes are created for efficient querying
+   - Data quality metrics are maintained
+
+## Performance Testing
+
+The system includes a performance testing service that:
+- Simulates high-volume data ingestion
+- Measures processing speed and efficiency
+- Generates performance reports
+- Helps identify bottlenecks
+
+To run performance tests:
 ```bash
-docker compose --profile maintenance up --build
+docker compose --profile performance-test up --build
 ```
-1. Creates daily aggregations by location and device:
-   - Calculates averages for all sensor readings
-   - Stores min/max values for temperature, humidity, and pressure
-   - Maintains count of readings per device-location combination
 
-2. Cleans up old data:
-   - Removes raw data older than 1 year
-   - Removes aggregated data older than 5 years
 
-3. Generates system statistics:
-   - Data quality metrics (total records, missing values, out-of-range values)
-   - Device statistics (active devices, locations, reading counts)
-   - Location statistics (active devices per location, reading counts)
+
+
 
 

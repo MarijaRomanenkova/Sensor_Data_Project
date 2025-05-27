@@ -40,25 +40,7 @@ services:
         condition: service_healthy
     profiles:
       - app
-      - maintenance
       - performance-test
-
-  maintenance:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sensor_maintenance
-    volumes:
-      - ./data:/app/data
-    environment:
-      - MONGODB_URI=${MONGODB_URI}
-      - MONGODB_DB=${MONGODB_DB}
-    command: python src/maintenance.py
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    profiles:
-      - maintenance
 
   performance-test:
     build:
