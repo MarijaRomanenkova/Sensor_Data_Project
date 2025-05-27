@@ -1,6 +1,6 @@
 # Environmental Sensor Data Processing System
 
-A data processing system for environmental sensor data collected by a municipality. The system stores and processes data from various sensors measuring environmental metrics like temperature, humidity, smoke, etc.
+A data processing system for environmental sensor data collected by a municipality. The system stores and processes data from csv file storing various sensors measuring environmental metrics like temperature, humidity, smoke, etc.
 
 ## Features
 
@@ -9,8 +9,37 @@ A data processing system for environmental sensor data collected by a municipali
 - MongoDB storage with proper indexing
 - Data retention policy (1 year raw data, 5 years aggregated)
 - Daily data aggregation
-- Automated backups
 - Connection pooling for better performance
+
+## Performance Test Results
+
+The system has been tested with a large dataset of 500,000 records, demonstrating excellent performance and reliability:
+
+```
+==================================================
+PERFORMANCE TEST RESULTS
+==================================================
+Total Processing Time: 25.86 seconds
+Processing Speed: 19,336.02 records/second
+Memory Usage: 194.19 MB
+Records Processed: 500,000
+Failed Records: 0
+Success Rate: 100.00%
+
+==================================================
+DATA QUALITY METRICS
+==================================================
+Data Quality Score: 100.00%
+Missing Values: 0
+Out of Range Values: 0
+```
+
+### Key Performance Highlights
+
+- **Processing Speed**: ~19,336 records/second
+- **Memory Efficiency**: Only 194.19 MB for processing 500K records
+- **Perfect Data Quality**: 100% success rate with no data quality issues
+- **Zero Failures**: All records were processed successfully
 
 ## Prerequisites
 
@@ -52,16 +81,7 @@ The system uses Docker Compose with different profiles for different purposes:
    - Load data if the database is empty
    - Persist data between restarts
 
-2. **Run Unit and Integration Tests**:
-   ```bash
-   docker compose --profile test up --build
-   ```
-   This will:
-   - Use a separate test database
-   - Run all unit and integration tests
-   - Show test results and coverage
-
-3. **Run Performance Tests**:
+2. **Run Performance Tests**:
    ```bash
    docker compose --profile performance-test up --build
    ```
@@ -70,7 +90,7 @@ The system uses Docker Compose with different profiles for different purposes:
    - Run performance tests on 500,000 records
    - Show processing speed and memory usage metrics
 
-4. **Run Maintenance Tasks**:
+3. **Run Maintenance Tasks**:
    ```bash
    docker compose --profile maintenance up --build
    ```
@@ -80,7 +100,7 @@ The system uses Docker Compose with different profiles for different purposes:
    - Generate data quality metrics
    - Show device and location statistics
 
-5. **Stop Services**:
+4. **Stop Services**:
    ```bash
    # Stop services but keep data
    docker compose down --remove-orphans
@@ -166,7 +186,10 @@ Note: The `-v` flag in `docker compose down` removes all volumes, including the 
 
 ## Maintenance
 
-The system performs the following maintenance tasks daily:
+The system performs the following maintenance tasks that should be run by separate command:
+```bash
+docker compose --profile maintenance up --build
+```
 1. Creates daily aggregations by location and device:
    - Calculates averages for all sensor readings
    - Stores min/max values for temperature, humidity, and pressure

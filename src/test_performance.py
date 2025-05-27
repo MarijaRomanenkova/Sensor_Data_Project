@@ -52,6 +52,11 @@ def test_data_loading(num_records: int = 500000):
         # Connect to MongoDB
         processor.connect_to_mongodb()
         
+        # Clean up existing data before test
+        logger.info("Cleaning up existing data from the database...")
+        processor.collection.delete_many({})
+        logger.info("Database cleanup completed")
+        
         # Generate and process test data
         generate_test_data(num_records, test_file)
         
@@ -63,25 +68,33 @@ def test_data_loading(num_records: int = 500000):
         duration = end_time - start_time
         records_per_second = result['processed_records'] / duration if duration > 0 else 0
         
-        logger.info("\n=== Performance Test Results ===")
-        logger.info(f"Total time: {duration:.2f} seconds")
-        logger.info(f"Total records processed: {result['processed_records']:,}")
-        logger.info(f"Processing speed: {records_per_second:.2f} records/second")
-        logger.info(f"Failed records: {result['failed_records']:,}")
-        logger.info(f"Success rate: {(result['processed_records'] / num_records * 100):.2f}%")
-        
         # Calculate memory usage
         import psutil
         process = psutil.Process()
         memory_info = process.memory_info()
-        logger.info(f"Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
+        memory_usage_mb = memory_info.rss / 1024 / 1024
         
         # Get data quality metrics
         quality_metrics = processor.get_data_quality_metrics()
-        logger.info("\n=== Data Quality Metrics ===")
-        logger.info(f"Data quality score: {quality_metrics['data_quality_score']:.2f}%")
-        logger.info(f"Missing values: {quality_metrics['missing_values']:,}")
-        logger.info(f"Out of range values: {quality_metrics['out_of_range']:,}")
+        
+        # Print performance results in a clear format
+        logger.info("\n" + "="*50)
+        logger.info("PERFORMANCE TEST RESULTS")
+        logger.info("="*50)
+        logger.info(f"Total Processing Time: {duration:.2f} seconds")
+        logger.info(f"Processing Speed: {records_per_second:,.2f} records/second")
+        logger.info(f"Memory Usage: {memory_usage_mb:.2f} MB")
+        logger.info(f"Records Processed: {result['processed_records']:,}")
+        logger.info(f"Failed Records: {result['failed_records']:,}")
+        logger.info(f"Success Rate: {(result['processed_records'] / num_records * 100):.2f}%")
+        
+        logger.info("\n" + "="*50)
+        logger.info("DATA QUALITY METRICS")
+        logger.info("="*50)
+        logger.info(f"Data Quality Score: {quality_metrics['data_quality_score']:.2f}%")
+        logger.info(f"Missing Values: {quality_metrics['missing_values']:,}")
+        logger.info(f"Out of Range Values: {quality_metrics['out_of_range']:,}")
+        logger.info("="*50 + "\n")
         
     except Exception as e:
         logger.error(f"Error during testing: {str(e)}")

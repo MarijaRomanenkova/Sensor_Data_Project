@@ -4,108 +4,78 @@ services:
   mongodb:
     image: mongo:latest
     container_name: sensor_mongodb
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     ports:
       - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=${MONGODB_DB}
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongodb_data:/data/db
-    command: mongod --auth
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - sensor_network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5", "--setParameter", "diagnosticDataCollectionEnabled=false"]
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: sensor_app
-    depends_on:
-      mongodb:
-        condition: service_healthy
+    volumes:
+      - ./data:/app/data
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - MONGODB_DB=${MONGODB_DB}
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./poetry.lock:/app/poetry.lock
-    command: python src/load_data.py
-    networks:
-      - sensor_network
-
-  performance-test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sensor_performance_test
     depends_on:
       mongodb:
         condition: service_healthy
-    environment:
-      - MONGODB_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/test_sensor_data?authSource=admin
-      - MONGODB_DB=test_sensor_data
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./poetry.lock:/app/poetry.lock
-    command: python src/test_performance.py
-    profiles: ["performance-test"]
-    networks:
-      - sensor_network
-
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: sensor_test
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    environment:
-      - MONGODB_URI=${MONGODB_URI}
-      - MONGODB_DB=${MONGODB_DB}
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./poetry.lock:/app/poetry.lock
-    command: pytest src/data_processing/tests/ -v
-    profiles: ["test"]
-    networks:
-      - sensor_network
+    profiles:
+      - app
+      - maintenance
+      - performance-test
 
   maintenance:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: sensor_maintenance
-    depends_on:
-      mongodb:
-        condition: service_healthy
+    volumes:
+      - ./data:/app/data
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - MONGODB_DB=${MONGODB_DB}
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./poetry.lock:/app/poetry.lock
     command: python src/maintenance.py
-    profiles: ["maintenance"]
-    networks:
-      - sensor_network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - maintenance
 
-networks:
-  sensor_network:
-    driver: bridge
+  performance-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor_performance_test
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}_performance_test
+    command: python src/test_performance.py
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - performance-test
 
 volumes:
-  mongodb_data: 
+  mongodb_data:

@@ -37,4 +37,4 @@ RUN poetry install --no-interaction --no-ansi
 ENV PYTHONPATH=/app
 
 # Command to run the application
-CMD ["python", "src/load_data.py"] 
+CMD ["python", "src/main.py"] 

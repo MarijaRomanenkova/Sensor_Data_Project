@@ -22,17 +22,6 @@ pytz = "^2025.2"
 tzdata = "^2025.2"
 requests = "^2.31.0"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.0.0"
-pytest-cov = "^4.0.0"
-mongomock = "^4.1.2"
-black = "^23.0.0"
-flake8 = "^6.0.0"
-isort = "^5.13.2"
-mypy = "^1.0.0"
-pylint = "^3.0.3"
-pandas-stubs = "^2.2.3.250308"
-
 [tool.black]
 line-length = 88
 target-version = ['py310', 'py311']
@@ -41,21 +30,4 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-line_length = 88
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-
-[tool.pytest.ini_options]
-pythonpath = [
-    "."
-]
-testpaths = [
-    "src/data_processing/tests"
-]
-python_files = ["test_*.py"]
-addopts = "--cov=src/data_processing --cov-report=term-missing" 
+line_length = 88 

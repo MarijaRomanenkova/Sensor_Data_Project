@@ -9,39 +9,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def is_data_loaded(processor: DataProcessor) -> bool:
+    """Check if data is already loaded in the database."""
+    try:
+        # Check if there are any records in the collection
+        count = processor.collection.count_documents({})
+        if count > 0:
+            logger.info(f"Database already contains {count:,} records")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking if data is loaded: {str(e)}")
+        return False
 
 def main():
+    processor = DataProcessor()
     try:
-        # Initialize data processor
-        processor = DataProcessor()
-
         # Connect to MongoDB
         processor.connect_to_mongodb()
-
-        # Process data files
-        data_dir = os.path.join(os.getcwd(), "data", "raw")
-        for filename in os.listdir(data_dir):
-            if filename.endswith(".csv"):
-                file_path = os.path.join(data_dir, filename)
-                logger.info(f"Processing file: {filename}")
-
-                # Process the file
-                results = processor.process_file(file_path)
-
-                # Log results
-                logger.info(f"Processing results for {filename}:")
-                logger.info(f"Total records: {results['total_records']}")
-                logger.info(f"Processed records: {results['processed_records']}")
-                logger.info(f"Failed records: {results['failed_records']}")
-
+        
+        # Check if data is already loaded
+        if is_data_loaded(processor):
+            logger.info("Data is already loaded. Skipping data loading process.")
+            return
+        
+        # Process data from CSV files
+        data_dir = "data/raw"
+        csv_files = [
+            os.path.join(data_dir, "real_time_data.csv")
+        ]
+        
+        for csv_file in csv_files:
+            if not os.path.exists(csv_file):
+                logger.warning(f"File not found: {csv_file}")
+                continue
+                
+            logger.info(f"Processing file: {csv_file}")
+            result = processor.process_file_in_batches(csv_file)
+            logger.info(f"File: {os.path.basename(csv_file)}")
+            logger.info(f"Total records: {result['total_records']}")
+            logger.info(f"Successfully processed: {result['processed_records']}")
+            logger.info(f"Failed records: {result['failed_records']}")
+            
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
+        logger.error(f"Error in main: {str(e)}")
         raise
     finally:
-        # Close MongoDB connection
-        if "processor" in locals():
-            processor.close()
-
+        processor.close()
 
 if __name__ == "__main__":
     main()
