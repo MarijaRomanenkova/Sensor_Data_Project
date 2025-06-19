@@ -76,3 +76,53 @@ docker compose down --remove-orphans
 # Stop services and remove all data (fresh start)
 docker compose down -v --remove-orphans
 ```
+
+## 📁 Data Structure
+
+### Raw Data Schema
+```json
+{
+  "timestamp": "ISODate",
+  "device_id": "String",
+  "temperature": "Double",
+  "humidity": "Double", 
+  "pressure": "Double",
+  "light": "Integer",
+  "sound": "Integer",
+  "motion": "Integer",
+  "battery": "Double",
+  "location": "String",
+  "metadata": {
+    "batch_id": "String",
+    "processed_at": "ISODate"
+  }
+}
+```
+
+### Field Descriptions
+- `timestamp`: Date and time of the sensor reading
+- `device_id`: Unique identifier for the sensor device
+- `temperature`: Temperature reading in Celsius (configurable range)
+- `humidity`: Humidity percentage (configurable range)
+- `pressure`: Atmospheric pressure in hPa (configurable range)
+- `light`: Light level reading (configurable minimum)
+- `sound`: Sound level reading (configurable minimum)
+- `motion`: Motion detection (0 or 1)
+- `battery`: Battery level percentage (configurable range)
+- `location`: Physical location of the sensor
+- `metadata`: Additional processing information
+
+## ⚙️ Configuration
+
+### Environment Variables
+All settings are configurable via environment variables:
+
+
+# Processing Parameters (in settings.py)
+CHUNK_SIZE=1000                     # CSV reading chunk size
+VALIDATION_CHUNK_SIZE=1000          # Validation parallel chunk size
+MONGODB_INSERT_BATCH_SIZE=2000      # MongoDB insert batch size
+MAX_WORKERS=4                       # Number of worker threads
+MONGODB_POOL_SIZE=5                 # Connection pool minimum
+MONGODB_MAX_POOL_SIZE=25            # Connection pool maximum
+```
