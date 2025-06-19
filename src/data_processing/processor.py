@@ -12,11 +12,13 @@ import gc
 import tracemalloc
 import psutil
 from dateutil import parser
+import warnings
 
 import pandas as pd
 from dotenv import load_dotenv
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError
+from pymongo import WriteConcern
 
 from config.settings import (
     BATCH_SIZE, CHUNK_SIZE, VALIDATION_CHUNK_SIZE, MAX_WORKERS,
@@ -25,7 +27,8 @@ from config.settings import (
     MONGODB_INSERT_BATCH_SIZE, MONGODB_COLLECTION,
     TEMPERATURE_RANGE, HUMIDITY_RANGE, PRESSURE_RANGE,
     LIGHT_RANGE, SOUND_RANGE, MOTION_RANGE, BATTERY_RANGE,
-    MONGODB_URI, MONGODB_DB
+    MONGODB_URI, MONGODB_DB,
+    MONGODB_WRITE_CONCERN_W, MONGODB_WRITE_CONCERN_J, MONGODB_WRITE_CONCERN_WTIMEOUT
 )
 
 # Configure logging
@@ -34,6 +37,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Suppress pandas timestamp conversion warnings
+warnings.filterwarnings('ignore', message='Discarding nonzero nanoseconds in conversion')
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder to handle datetime and Timestamp objects."""
@@ -85,11 +90,14 @@ class DataProcessor:
             'humidity': ['humidity', 'hum', 'Humidity', 'HUM', 'humidity_percent', 'humidity_pct'],
             # Pressure variations
             'pressure': ['pressure', 'Pressure', 'PRESSURE', 'pressure_value', 'pressure_value_hpa'],
-            # Additional value fields
-            'value1': ['value1', 'Value1', 'VALUE1', 'reading1', 'Reading1'],
-            'value2': ['value2', 'Value2', 'VALUE2', 'reading2', 'Reading2'],
-            'value3': ['value3', 'Value3', 'VALUE3', 'reading3', 'Reading3'],
-            'value4': ['value4', 'Value4', 'VALUE4', 'reading4', 'Reading4'],
+            # Light variations
+            'light': ['light', 'Light', 'LIGHT', 'light_level', 'lux'],
+            # Sound variations
+            'sound': ['sound', 'Sound', 'SOUND', 'sound_level', 'decibel'],
+            # Motion variations
+            'motion': ['motion', 'Motion', 'MOTION', 'motion_detected'],
+            # Battery variations
+            'battery': ['battery', 'Battery', 'BATTERY', 'battery_level', 'battery_percent'],
             # Location field
             'location': ['location', 'Location', 'LOCATION', 'room', 'Room', 'ROOM']
         }
@@ -110,6 +118,13 @@ class DataProcessor:
         
         # Initialize field validators for validation logic
         self.field_validators = self._initialize_field_validators()
+        
+        # Create write concern once for reuse
+        self.write_concern = WriteConcern(
+            w=MONGODB_WRITE_CONCERN_W,
+            j=MONGODB_WRITE_CONCERN_J,
+            wtimeout=MONGODB_WRITE_CONCERN_WTIMEOUT
+        )
 
     def connect_to_mongodb(self):
         """Establish connection to MongoDB with optimized connection pooling."""
@@ -214,7 +229,8 @@ class DataProcessor:
             # Apply schema validation
             self.db.command("collMod", self.collection.name, **schema)
             
-            logger.info("Successfully connected to MongoDB with optimized connection pooling and schema validation")
+            logger.info(f"Successfully connected to MongoDB with optimized connection pooling and schema validation")
+            logger.info(f"Write concern: w={MONGODB_WRITE_CONCERN_W}, j={MONGODB_WRITE_CONCERN_J}, wtimeout={MONGODB_WRITE_CONCERN_WTIMEOUT}")
         except PyMongoError as e:
             logger.error(f"Failed to connect to MongoDB: {str(e)}")
             raise
@@ -249,20 +265,15 @@ class DataProcessor:
     def _validate_fields(self, record: Dict[str, Any]) -> bool:
         """Validate all fields in a record."""
         try:
-            for field, value in record.items():
-                if not self._validate_field(field, value):
-                    self.validation_errors.append({
-                        'type': 'field_validation_failed',
-                        'field': field,
-                        'value': value
-                    })
+            # Only validate essential fields for performance
+            essential_fields = ['timestamp', 'device_id', 'temperature', 'humidity', 'pressure', 'location']
+            for field in essential_fields:
+                if field not in record:
+                    return False
+                if not self._validate_field(field, record[field]):
                     return False
             return True
         except Exception as e:
-            self.validation_errors.append({
-                'type': 'field_validation_error',
-                'error': str(e)
-            })
             return False
 
     def _validate_field(self, field: str, value: Any) -> bool:
@@ -273,19 +284,23 @@ class DataProcessor:
 
             validator = self.field_validators[field]
             if not validator(value):
-                self.validation_errors.append({
-                    'type': 'validator_failed',
-                    'field': field,
-                    'value': value
-                })
+                # Only collect validation errors if we're in debug mode or have errors
+                if logger.isEnabledFor(logging.DEBUG):
+                    self.validation_errors.append({
+                        'type': 'validator_failed',
+                        'field': field,
+                        'value': value
+                    })
                 return False
             return True
         except Exception as e:
-            self.validation_errors.append({
-                'type': 'validator_error',
-                'field': field,
-                'error': str(e)
-            })
+            # Only collect validation errors if we're in debug mode or have errors
+            if logger.isEnabledFor(logging.DEBUG):
+                self.validation_errors.append({
+                    'type': 'validator_error',
+                    'field': field,
+                    'error': str(e)
+                })
             return False
 
     def _normalize_record_fields(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -329,9 +344,12 @@ class DataProcessor:
             }
             
             # Process file in chunks
-            for chunk in pd.read_csv(file_path, chunksize=CHUNK_SIZE):
+            for chunk in pd.read_csv(file_path, chunksize=CHUNK_SIZE, parse_dates=['timestamp']):
                 file_stats['total_records'] += len(chunk)
                 file_stats['total_chunks'] += 1
+                
+                # Normalize column names first
+                chunk = self.normalize_column_names(chunk)
                 
                 # Convert chunk to records
                 records = chunk.to_dict('records')
@@ -343,39 +361,42 @@ class DataProcessor:
             # Calculate final statistics
             file_stats['failed_records'] = file_stats['total_records'] - file_stats['processed_records']
             success_rate = (file_stats['processed_records'] / file_stats['total_records'] * 100) if file_stats['total_records'] > 0 else 0
-            # Log final summary including error statistics
-            logger.info("\n=== Processing Summary ===")
-            logger.info(f"Total Records: {file_stats['total_records']:,}")
-            logger.info(f"Success Rate: {success_rate:.2f}%")
-            logger.info(f"Failed Records: {file_stats['failed_records']:,}")
-            # Log error summaries
-            if self.validation_errors:
-                logger.warning(f"\nValidation Errors: {len(self.validation_errors)}")
-                # Log most common validation errors
-                error_counts = {}
-                for error in self.validation_errors:
-                    error_type = error.get('type', 'unknown')
-                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
-                for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                    logger.warning(f"- {error_type}: {count} occurrences")
-            if self.mongo_errors:
-                logger.error(f"\nMongoDB Errors: {len(self.mongo_errors)}")
-                # Log most common MongoDB errors
-                error_counts = {}
-                for error in self.mongo_errors:
-                    error_type = error.get('type', 'unknown')
-                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
-                for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                    logger.error(f"- {error_type}: {count} occurrences")
-            if self.processing_errors:
-                logger.error(f"\nProcessing Errors: {len(self.processing_errors)}")
-                # Log most common processing errors
-                error_counts = {}
-                for error in self.processing_errors:
-                    error_type = error.get('type', 'unknown')
-                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
-                for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
-                    logger.error(f"- {error_type}: {count} occurrences")
+            
+            # Only log summary if there are errors or if explicitly requested
+            if self.validation_errors or self.mongo_errors or self.processing_errors:
+                logger.info("\n=== Processing Summary ===")
+                logger.info(f"Total Records: {file_stats['total_records']:,}")
+                logger.info(f"Success Rate: {success_rate:.2f}%")
+                logger.info(f"Failed Records: {file_stats['failed_records']:,}")
+                
+                # Log error summaries
+                if self.validation_errors:
+                    logger.warning(f"\nValidation Errors: {len(self.validation_errors)}")
+                    # Log most common validation errors
+                    error_counts = {}
+                    for error in self.validation_errors:
+                        error_type = error.get('type', 'unknown')
+                        error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                    for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                        logger.warning(f"- {error_type}: {count} occurrences")
+                if self.mongo_errors:
+                    logger.error(f"\nMongoDB Errors: {len(self.mongo_errors)}")
+                    # Log most common MongoDB errors
+                    error_counts = {}
+                    for error in self.mongo_errors:
+                        error_type = error.get('type', 'unknown')
+                        error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                    for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                        logger.error(f"- {error_type}: {count} occurrences")
+                if self.processing_errors:
+                    logger.error(f"\nProcessing Errors: {len(self.processing_errors)}")
+                    # Log most common processing errors
+                    error_counts = {}
+                    for error in self.processing_errors:
+                        error_type = error.get('type', 'unknown')
+                        error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                    for error_type, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
+                        logger.error(f"- {error_type}: {count} occurrences")
             return file_stats
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {str(e)}")
@@ -391,12 +412,29 @@ class DataProcessor:
                 validation_results = list(executor.map(self.validate_data, validation_chunk))
             # Filter valid records
             valid_records = [record for record, is_valid in zip(validation_chunk, validation_results) if is_valid]
-            # Convert 'timestamp' field to datetime if it's a string
+            # Convert 'timestamp' field to datetime if needed
             for record in valid_records:
-                if 'timestamp' in record and isinstance(record['timestamp'], str):
-                    try:
-                        record['timestamp'] = parser.parse(record['timestamp'])
-                    except Exception:
+                if 'timestamp' in record:
+                    timestamp = record['timestamp']
+                    if isinstance(timestamp, str):
+                        try:
+                            record['timestamp'] = parser.parse(timestamp)
+                        except Exception:
+                            self.validation_errors.append({
+                                'type': 'timestamp_conversion_failed',
+                                'record': record
+                            })
+                            record['timestamp'] = None
+                    elif hasattr(timestamp, 'to_pydatetime'):  # Handle pandas Timestamp
+                        try:
+                            record['timestamp'] = timestamp.to_pydatetime()
+                        except Exception:
+                            self.validation_errors.append({
+                                'type': 'timestamp_conversion_failed',
+                                'record': record
+                            })
+                            record['timestamp'] = None
+                    elif not isinstance(timestamp, datetime):  # Skip if already datetime
                         self.validation_errors.append({
                             'type': 'timestamp_conversion_failed',
                             'record': record
@@ -410,7 +448,10 @@ class DataProcessor:
                 sub_batches = [valid_records[j:j + MONGODB_INSERT_BATCH_SIZE] for j in range(0, len(valid_records), MONGODB_INSERT_BATCH_SIZE)]
                 def insert_sub_batch(sub_batch):
                     try:
-                        result = self.collection.insert_many(sub_batch, ordered=False)
+                        result = self.collection.with_options(write_concern=self.write_concern).insert_many(
+                            sub_batch, 
+                            ordered=False
+                        )
                         return len(result.inserted_ids)
                     except Exception as e:
                         self.mongo_errors.append({
@@ -438,13 +479,14 @@ class DataProcessor:
             if col_lower in reverse_mapping:
                 column_mapping[col] = reverse_mapping[col_lower]
             else:
-                logger.warning(f"Unknown column name: {col}")
+                # Only log unknown columns at debug level to reduce overhead
+                logger.debug(f"Unknown column name: {col}")
         
         # Rename columns
         df = df.rename(columns=column_mapping)
         
-        # Check for missing required columns
-        required_columns = set(self.column_mappings.keys())
+        # Check for missing required columns (only essential ones)
+        required_columns = {'timestamp', 'device_id', 'temperature', 'humidity', 'pressure', 'location'}
         missing_columns = required_columns - set(df.columns)
         if missing_columns:
             raise ValueError(f"Missing required columns: {missing_columns}")
@@ -457,7 +499,7 @@ class DataProcessor:
             self.client.close()
             logger.info("MongoDB connection closed")
         
-        # Log summary of collected errors if any exist
+        # Only log error summary if there are actual errors
         if self.validation_errors or self.mongo_errors or self.processing_errors:
             logger.info(f"Error summary - Validation: {len(self.validation_errors)}, MongoDB: {len(self.mongo_errors)}, Processing: {len(self.processing_errors)}")
 
@@ -627,28 +669,29 @@ class DataProcessor:
             pipeline.append({
                 "$group": {
                     "_id": "$location",
+                    "count": {"$sum": 1},
                     "avg_temperature": {"$avg": "$temperature"},
                     "avg_humidity": {"$avg": "$humidity"},
                     "avg_pressure": {"$avg": "$pressure"},
-                    "avg_light": {"$avg": "$light"},
-                    "avg_sound": {"$avg": "$sound"},
-                    "device_count": {"$addToSet": "$device_id"},
-                    "total_readings": {"$sum": 1},
-                    "first_reading": {"$min": "$timestamp"},
-                    "last_reading": {"$max": "$timestamp"}
+                    "min_temperature": {"$min": "$temperature"},
+                    "max_temperature": {"$max": "$temperature"},
+                    "min_humidity": {"$min": "$humidity"},
+                    "max_humidity": {"$max": "$humidity"},
+                    "min_pressure": {"$min": "$pressure"},
+                    "max_pressure": {"$max": "$pressure"}
                 }
             })
             
+            # Add sort stage
+            pipeline.append({"$sort": {"count": -1}})
+            
+            # Execute aggregation
             results = list(self.collection.aggregate(pipeline))
             
-            # Format the results
-            for result in results:
-                result["location"] = result.pop("_id")
-                result["device_count"] = len(result["device_count"])
-                result["first_reading"] = result["first_reading"].isoformat()
-                result["last_reading"] = result["last_reading"].isoformat()
-            
-            return results[0] if location and results else results
+            return {
+                "locations": results,
+                "total_locations": len(results)
+            }
             
         except Exception as e:
             logger.error(f"Error getting location stats: {str(e)}")

@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 def generate_test_data(num_records: int, output_file: str):
     """Generate a test dataset with the specified number of records."""
-    logger.info(f"Generating test dataset with {num_records:,} records...")
+    # Use debug level for performance tests
+    logger.debug(f"Generating test dataset with {num_records:,} records...")
     
     # Ensure the output directory exists
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -43,13 +44,12 @@ def generate_test_data(num_records: int, output_file: str):
     # Create DataFrame and save to CSV
     df = pd.DataFrame(data)
     df.to_csv(output_file, index=False)
-    logger.info(f"Test dataset saved to {output_file}")
+    logger.debug(f"Test dataset saved to {output_file}")
     return df
 
 def test_data_loading(num_records: int = 500000):
     """Test the system's performance with a large dataset."""
     processor = DataProcessor()
-    start_time = time.time()
     test_file = "data/raw/test_large_dataset.csv"
     
     try:
@@ -61,21 +61,24 @@ def test_data_loading(num_records: int = 500000):
         # Connect to MongoDB
         processor.connect_to_mongodb()
         
-        # Clean up existing data before test
+        # Clean up existing data before test (NOT TIMED)
         logger.debug("Cleaning up existing data from the database...")
         processor.collection.delete_many({})
         logger.debug("Database cleanup completed")
         
-        # Generate and process test data
+        # Generate and process test data (NOT TIMED)
         logger.debug(f"Generating test dataset with {num_records:,} records...")
         generate_test_data(num_records, test_file)
         logger.debug(f"Test dataset saved to {test_file}")
         
-        logger.info(f"Starting to process {num_records:,} records...")
+        # TIMING STARTS HERE - only measure actual processing
+        logger.debug(f"Starting to process {num_records:,} records...")
+        start_time = time.time()
         result = processor.process_file_in_batches(test_file)
+        end_time = time.time()
+        # TIMING ENDS HERE
         
         # Calculate and log performance metrics
-        end_time = time.time()
         duration = end_time - start_time
         records_per_second = result['processed_records'] / duration if duration > 0 else 0
         
@@ -92,7 +95,7 @@ def test_data_loading(num_records: int = 500000):
         logger.info("\n" + "="*50)
         logger.info("PERFORMANCE TEST RESULTS")
         logger.info("="*50)
-        logger.info(f"Total Processing Time: {duration:.2f} seconds")
+        logger.info(f"Processing Time: {duration:.2f} seconds")
         logger.info(f"Processing Speed: {records_per_second:,.2f} records/second")
         logger.info(f"Memory Usage: {memory_usage_mb:.2f} MB")
         logger.info(f"Records Processed: {result['processed_records']:,}")

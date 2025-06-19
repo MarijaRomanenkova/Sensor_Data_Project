@@ -18,11 +18,16 @@ MONGODB_MAX_IDLE_TIME_MS = 15000  # Max idle time for connections
 MONGODB_CONNECT_TIMEOUT_MS = 30000  # Connection timeout
 MONGODB_SOCKET_TIMEOUT_MS = 30000  # Socket timeout
 
+# MongoDB write concern settings
+MONGODB_WRITE_CONCERN_W = 1  # Write acknowledgment level (0=no ack, 1=primary, majority=majority)
+MONGODB_WRITE_CONCERN_J = False  # Journal acknowledgment
+MONGODB_WRITE_CONCERN_WTIMEOUT = 5000  # Write timeout in milliseconds
+
 # Data processing settings
 BATCH_SIZE = 2000  # For MongoDB write operations
-CHUNK_SIZE = 10000  # For CSV reading operations
+CHUNK_SIZE = 1000  # For CSV reading operations
 VALIDATION_CHUNK_SIZE = 1000  # For validation operations
-MAX_WORKERS = 8  # Number of worker threads for parallel processing
+MAX_WORKERS = 4  # Number of worker threads for parallel processing
 MONGODB_INSERT_BATCH_SIZE = 2000  # Fixed batch size for MongoDB insertion (for testing)
 DATA_DIR = os.path.join(os.getcwd(), "data", "raw")
 
