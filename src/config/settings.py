@@ -6,12 +6,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MongoDB settings
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://admin:password123@mongodb:27017/")
+MONGODB_URI = os.getenv("MONGODB_URI")
 MONGODB_DB = os.getenv("MONGODB_DB", "sensor_data")
 MONGODB_COLLECTION = "sensor_readings"
 
+# MongoDB connection pooling settings
+MONGODB_POOL_SIZE = 5  # Minimum pool size
+MONGODB_MAX_POOL_SIZE = 25  # Maximum pool size
+MONGODB_WAIT_QUEUE_TIMEOUT_MS = 500  # Wait queue timeout
+MONGODB_MAX_IDLE_TIME_MS = 15000  # Max idle time for connections
+MONGODB_CONNECT_TIMEOUT_MS = 30000  # Connection timeout
+MONGODB_SOCKET_TIMEOUT_MS = 30000  # Socket timeout
+
 # Data processing settings
-BATCH_SIZE = 50000  # Optimized for high throughput processing
+BATCH_SIZE = 2000  # For MongoDB write operations
+CHUNK_SIZE = 10000  # For CSV reading operations
+VALIDATION_CHUNK_SIZE = 1000  # For validation operations
+MAX_WORKERS = 8  # Number of worker threads for parallel processing
+MONGODB_INSERT_BATCH_SIZE = 2000  # Fixed batch size for MongoDB insertion (for testing)
 DATA_DIR = os.path.join(os.getcwd(), "data", "raw")
 
 # Data validation ranges

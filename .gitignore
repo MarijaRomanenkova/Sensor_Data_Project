@@ -52,5 +52,6 @@ data/processed/*
 # Docker
 .docker/
 
-# Documentation
+# Documentation - ignore all markdown files except README.md
 *.md
+!README.md

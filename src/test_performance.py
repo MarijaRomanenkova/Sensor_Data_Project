@@ -5,6 +5,7 @@ import numpy as np
 import os
 from datetime import datetime, timedelta
 from data_processing.processor import DataProcessor
+from dateutil import parser
 
 # Configure logging
 logging.basicConfig(
@@ -16,6 +17,9 @@ logger = logging.getLogger(__name__)
 def generate_test_data(num_records: int, output_file: str):
     """Generate a test dataset with the specified number of records."""
     logger.info(f"Generating test dataset with {num_records:,} records...")
+    
+    # Ensure the output directory exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
     # Generate timestamps
     end_time = datetime.now()
@@ -49,16 +53,23 @@ def test_data_loading(num_records: int = 500000):
     test_file = "data/raw/test_large_dataset.csv"
     
     try:
+        # Temporarily reduce logging level for processor
+        processor_logger = logging.getLogger('data_processing.processor')
+        original_level = processor_logger.level
+        processor_logger.setLevel(logging.WARNING)
+        
         # Connect to MongoDB
         processor.connect_to_mongodb()
         
         # Clean up existing data before test
-        logger.info("Cleaning up existing data from the database...")
+        logger.debug("Cleaning up existing data from the database...")
         processor.collection.delete_many({})
-        logger.info("Database cleanup completed")
+        logger.debug("Database cleanup completed")
         
         # Generate and process test data
+        logger.debug(f"Generating test dataset with {num_records:,} records...")
         generate_test_data(num_records, test_file)
+        logger.debug(f"Test dataset saved to {test_file}")
         
         logger.info(f"Starting to process {num_records:,} records...")
         result = processor.process_file_in_batches(test_file)
@@ -88,24 +99,33 @@ def test_data_loading(num_records: int = 500000):
         logger.info(f"Failed Records: {result['failed_records']:,}")
         logger.info(f"Success Rate: {(result['processed_records'] / num_records * 100):.2f}%")
         
-        logger.info("\n" + "="*50)
-        logger.info("DATA QUALITY METRICS")
-        logger.info("="*50)
-        logger.info(f"Data Quality Score: {quality_metrics['data_quality_score']:.2f}%")
-        logger.info(f"Missing Values: {quality_metrics['missing_values']:,}")
-        logger.info(f"Out of Range Values: {quality_metrics['out_of_range']:,}")
-        logger.info("="*50 + "\n")
+        # Move detailed quality metrics to debug level
+        logger.debug("\n" + "="*50)
+        logger.debug("DATA QUALITY METRICS")
+        logger.debug("="*50)
+        logger.debug(f"Data Quality Score: {quality_metrics['data_quality_score']:.2f}%")
+        logger.debug(f"Missing Values: {quality_metrics['missing_values']:,}")
+        logger.debug(f"Out of Range Values: {quality_metrics['out_of_range']:,}")
+        logger.debug("="*50 + "\n")
+        
+        if processor.validation_errors:
+            logger.warning(f"First 3 validation errors: {processor.validation_errors[:3]}")
+        
+        if processor.mongo_errors:
+            logger.error(f"First 3 MongoDB errors: {processor.mongo_errors[:3]}")
         
     except Exception as e:
         logger.error(f"Error during testing: {str(e)}")
         raise
     finally:
+        # Restore original logging level
+        processor_logger.setLevel(original_level)
         processor.close()
         # Clean up the test file
         try:
             if os.path.exists(test_file):
                 os.remove(test_file)
-                logger.info(f"Cleaned up test file: {test_file}")
+                logger.debug(f"Cleaned up test file: {test_file}")
         except Exception as e:
             logger.error(f"Error cleaning up test file: {str(e)}")
 

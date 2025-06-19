@@ -24,6 +24,8 @@ services:
         reservations:
           memory: 512M
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.5", "--setParameter", "diagnosticDataCollectionEnabled=false"]
+    networks:
+      - app-network
 
   app:
     build:
@@ -38,9 +40,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    networks:
+      - app-network
     profiles:
       - app
       - performance-test
+      - index-test
+      - csv-test
+      - comprehensive-test
 
   performance-test:
     build:
@@ -56,8 +63,65 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    networks:
+      - app-network
     profiles:
       - performance-test
 
+  index-performance-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor_index_test
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}_index_test
+    command: python src/test_index_performance.py
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - index-test
+
+  csv-reading-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sensor_csv_test
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=${MONGODB_DB}_csv_test
+    command: python src/test_csv_reading.py
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    profiles:
+      - csv-test
+
+  comprehensive-optimization-test:
+    build: .
+    container_name: comprehensive-optimization-test
+    volumes:
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=sensor_data_comprehensive_test
+    command: python src/test_comprehensive_optimization.py
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - app-network
+    profiles:
+      - comprehensive-test
+
 volumes:
   mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge
